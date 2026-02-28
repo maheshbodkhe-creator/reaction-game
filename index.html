@@ -5,14 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>React/or — Reaction Timer</title>
 
-  <!-- Typography: Oxanium for numbers/scores, Inter for UI text -->
+  <!-- Favicon from project root -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
+  <!-- Three.js r128 via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
   <style>
     /* ============================================================
-       DESIGN TOKENS — single source of truth for all visual values
+       DESIGN TOKENS
        ============================================================ */
     :root {
       --bg:           #0F1117;
@@ -23,21 +28,18 @@
       --accent-glow:  rgba(110,231,183,0.35);
       --danger:       #F87171;
       --danger-dim:   rgba(248,113,113,0.12);
+      --warn:         #FBBF24;
+      --warn-dim:     rgba(251,191,36,0.12);
       --text:         #F1F5F9;
       --muted:        #64748B;
       --border:       rgba(255,255,255,0.06);
-
       --font-display: 'Oxanium', monospace;
       --font-ui:      'Inter', sans-serif;
-
       --radius:       16px;
       --radius-sm:    8px;
       --transition:   0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* ============================================================
-       RESET & BASE
-       ============================================================ */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -51,17 +53,12 @@
       justify-content: center;
       padding: 1.5rem;
       overflow: hidden;
-      /* Subtle grid background for depth */
       background-image:
         linear-gradient(var(--border) 1px, transparent 1px),
         linear-gradient(90deg, var(--border) 1px, transparent 1px);
       background-size: 40px 40px;
-      background-position: center center;
     }
 
-    /* ============================================================
-       LAYOUT SHELL
-       ============================================================ */
     .app {
       width: 100%;
       max-width: 480px;
@@ -70,90 +67,43 @@
       gap: 1.25rem;
     }
 
-    /* ============================================================
-       HEADER
-       ============================================================ */
-    header {
-      text-align: center;
-    }
-
+    /* ── Header ─────────────────────────────────────────── */
+    header { text-align: center; }
     .logo {
       font-family: var(--font-display);
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--muted);
+      font-size: 1rem; font-weight: 700;
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted);
     }
+    .logo span { color: var(--accent); }
 
-    .logo span {
-      color: var(--accent);
-    }
-
-    /* ============================================================
-       SCORE STRIP — shows round progress and current avg
-       ============================================================ */
+    /* ── Score strip ─────────────────────────────────────── */
     .score-strip {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1rem 1.5rem;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 1rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1rem 1.5rem;
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      align-items: center; gap: 1rem;
     }
-
     .stat { display: flex; flex-direction: column; gap: 2px; }
     .stat:last-child { align-items: flex-end; }
-
-    .stat-label {
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .stat-value {
-      font-family: var(--font-display);
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--text);
-      transition: color var(--transition);
-    }
-
+    .stat-label { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .stat-value { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--text); transition: color var(--transition); }
     .stat-value.accent { color: var(--accent); }
-
-    /* Round pips */
-    .round-pips {
-      display: flex;
-      gap: 6px;
-      justify-content: center;
-    }
-
+    .round-pips { display: flex; gap: 6px; justify-content: center; }
     .pip {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--surface-2); border: 1px solid var(--border);
       transition: background var(--transition), border-color var(--transition), transform var(--transition);
     }
+    .pip.done    { background: var(--accent); border-color: var(--accent); }
+    .pip.current { background: transparent; border-color: var(--accent); transform: scale(1.3); }
 
-    .pip.done       { background: var(--accent); border-color: var(--accent); }
-    .pip.current    { background: transparent; border-color: var(--accent); transform: scale(1.3); }
-
-    /* ============================================================
-       MAIN ARENA — the click target and feedback zone
-       ============================================================ */
+    /* ── Arena ───────────────────────────────────────────── */
     .arena {
       position: relative;
       border-radius: var(--radius);
       overflow: hidden;
       cursor: pointer;
-      /* Height: responsive but bounded */
-      height: clamp(240px, 45vw, 340px);
+      height: clamp(260px, 48vw, 360px);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -161,64 +111,45 @@
       gap: 0.75rem;
       border: 2px solid var(--border);
       background: var(--surface);
-      transition:
-        background var(--transition),
-        border-color var(--transition),
-        box-shadow 0.15s ease;
+      transition: background var(--transition), border-color var(--transition), box-shadow 0.15s ease;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* ---- State: idle (start screen) ---- */
-    .arena[data-state="idle"] {
-      background: var(--surface);
-      border-color: var(--border);
-      cursor: default;
+    /* Three.js canvas behind everything */
+    #threeCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+      pointer-events: none;
     }
 
-    /* ---- State: waiting (randomized delay, "get ready") ---- */
-    .arena[data-state="waiting"] {
-      background: var(--surface);
-      border-color: var(--muted);
-      cursor: wait;
-      animation: pulse-wait 1.5s ease-in-out infinite;
+    /* Text overlay above canvas */
+    .arena-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0 1.5rem;
     }
+
+    /* ── Arena state styles ── */
+    .arena[data-state="intro"]   { background: var(--surface); border-color: var(--accent); box-shadow: 0 0 30px var(--accent-glow); cursor: default; }
+    .arena[data-state="idle"]    { background: var(--surface); border-color: var(--border); cursor: default; }
+    .arena[data-state="waiting"] { background: rgba(28,31,46,0.75); border-color: var(--muted); cursor: wait; animation: pulse-wait 1.5s ease-in-out infinite; }
+    .arena[data-state="go"]      { background: rgba(28,31,46,0.35); border-color: var(--accent); box-shadow: 0 0 40px var(--accent-glow), inset 0 0 60px var(--accent-dim); cursor: crosshair; }
+    .arena[data-state="result"]  { background: rgba(28,31,46,0.72); border-color: var(--accent); cursor: pointer; }
+    .arena[data-state="early"]   { background: rgba(28,31,46,0.6); border-color: var(--danger); box-shadow: 0 0 30px rgba(248,113,113,0.25); cursor: pointer; animation: shake 0.4s ease; }
+    .arena[data-state="done"]    { background: rgba(28,31,46,0.72); border-color: var(--accent); cursor: default; }
 
     @keyframes pulse-wait {
       0%, 100% { box-shadow: 0 0 0 0 rgba(100,116,139,0); }
       50%       { box-shadow: 0 0 0 12px rgba(100,116,139,0.12); }
     }
-
-    /* ---- State: go (stimulus shown, waiting for tap) ---- */
-    .arena[data-state="go"] {
-      background: var(--accent-dim);
-      border-color: var(--accent);
-      box-shadow: 0 0 40px var(--accent-glow), inset 0 0 60px var(--accent-dim);
-      cursor: crosshair;
-      animation: flicker-in 0.08s ease;
-    }
-
-    @keyframes flicker-in {
-      0%   { opacity: 0.3; }
-      100% { opacity: 1; }
-    }
-
-    /* ---- State: result (round complete) ---- */
-    .arena[data-state="result"] {
-      background: var(--surface);
-      border-color: var(--accent);
-      cursor: pointer;
-    }
-
-    /* ---- State: early (clicked before stimulus) ---- */
-    .arena[data-state="early"] {
-      background: var(--danger-dim);
-      border-color: var(--danger);
-      box-shadow: 0 0 30px rgba(248,113,113,0.25);
-      cursor: pointer;
-      animation: shake 0.4s ease;
-    }
-
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       20%       { transform: translateX(-8px); }
@@ -227,438 +158,601 @@
       80%       { transform: translateX(5px); }
     }
 
-    /* ---- State: done (game over) ---- */
-    .arena[data-state="done"] {
-      background: var(--surface);
-      border-color: var(--accent);
-      cursor: default;
-    }
-
-    /* ============================================================
-       ARENA INNER CONTENT
-       ============================================================ */
-    .arena-icon {
-      font-size: 2.5rem;
-      line-height: 1;
-      transition: opacity var(--transition);
-    }
-
+    .arena-icon { font-size: 2.5rem; line-height: 1; }
     .arena-title {
       font-family: var(--font-display);
-      font-size: clamp(2.5rem, 8vw, 4rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      transition: color var(--transition);
+      font-size: clamp(2.5rem, 8vw, 4rem); font-weight: 800;
+      letter-spacing: -0.02em; line-height: 1; transition: color var(--transition);
+    }
+    .arena-subtitle {
+      font-size: 0.8rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+      text-align: center;
     }
 
-    .arena-subtitle {
-      font-size: 0.8rem;
-      font-weight: 500;
+    /* ── Intro overlay (shown inside arena on first load only) ── */
+    /*
+      The intro panel lives inside .arena-content and replaces
+      the normal icon/title/subtitle trio. It is only injected
+      once and removed permanently when the user dismisses it.
+    */
+    .intro-panel {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      animation: fade-in 0.5s ease;
+    }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .intro-title {
+      font-family: var(--font-display);
+      font-size: 1.4rem; font-weight: 800;
+      color: var(--accent); letter-spacing: 0.05em;
+    }
+
+    .intro-steps {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .intro-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      font-size: 0.78rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .intro-step-num {
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-display);
+      font-size: 0.65rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Rating scale inside intro */
+    .intro-ratings {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem 0.6rem;
+    }
+
+    .intro-rating {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.72rem;
+    }
+
+    .rating-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .intro-divider {
+      width: 100%;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .intro-cta {
+      font-size: 0.7rem;
+      color: var(--muted);
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
+      text-align: center;
     }
 
-    /* ============================================================
-       ROUND HISTORY TABLE
-       ============================================================ */
-    .history {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1rem 1.5rem;
-      min-height: 64px;
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-    }
-
-    .history-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .history-title {
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .history-clear {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-family: var(--font-ui);
-      font-size: 0.7rem;
-      font-weight: 500;
-      cursor: pointer;
-      padding: 2px 6px;
-      border-radius: var(--radius-sm);
-      transition: color var(--transition), background var(--transition);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .history-clear:hover { color: var(--danger); background: var(--danger-dim); }
-
-    .history-rows {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .history-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      animation: slide-in 0.2s ease;
-    }
-
-    .history-row:last-child { border-bottom: none; }
-
-    @keyframes slide-in {
-      from { opacity: 0; transform: translateY(-6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .history-round {
-      font-size: 0.65rem;
-      color: var(--muted);
-      width: 20px;
-      flex-shrink: 0;
-    }
-
-    .history-bar-wrap {
-      flex: 1;
-      height: 4px;
-      background: var(--surface-2);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .history-bar {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--accent);
-      transform-origin: left;
-      animation: grow-bar 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
-
-    @keyframes grow-bar {
-      from { transform: scaleX(0); }
-      to   { transform: scaleX(1); }
-    }
-
-    .history-ms {
-      font-family: var(--font-display);
-      font-size: 0.85rem;
-      font-weight: 600;
-      min-width: 54px;
-      text-align: right;
-      color: var(--text);
-    }
-
-    .history-badge {
-      font-size: 0.6rem;
-      font-weight: 700;
-      padding: 1px 5px;
+    .intro-cta kbd {
+      display: inline-block;
+      padding: 1px 6px;
       border-radius: 4px;
+      border: 1px solid var(--muted);
+      font-family: var(--font-ui);
+      font-size: 0.65rem;
+      color: var(--text);
+      background: var(--surface-2);
+    }
+
+    /* ── Rating chip shown after each round and in final results ── */
+    .rating-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      width: 36px;
-      text-align: center;
-      flex-shrink: 0;
     }
+    .rating-chip.amazing      { background: rgba(110,231,183,0.18); color: var(--accent);  border: 1px solid var(--accent); }
+    .rating-chip.very-good    { background: rgba(129,210,111,0.15); color: #81D26F;         border: 1px solid #81D26F; }
+    .rating-chip.average      { background: rgba(251,191,36,0.15);  color: var(--warn);     border: 1px solid var(--warn); }
+    .rating-chip.below-avg    { background: rgba(248,113,113,0.15); color: var(--danger);   border: 1px solid var(--danger); }
 
-    .badge-best   { background: var(--accent-dim); color: var(--accent); }
-    .badge-worst  { background: var(--danger-dim);  color: var(--danger); }
-    .badge-blank  { visibility: hidden; }
-
-    .empty-state {
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.8rem;
-      padding: 0.5rem 0;
+    /* ── History ─────────────────────────────────────────── */
+    .history {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1rem 1.5rem; min-height: 64px;
+      display: flex; flex-direction: column; gap: 0.6rem;
     }
+    .history-header { display: flex; justify-content: space-between; align-items: center; }
+    .history-title  { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .history-clear  {
+      background: none; border: none; color: var(--muted); font-family: var(--font-ui);
+      font-size: 0.7rem; font-weight: 500; cursor: pointer; padding: 2px 6px;
+      border-radius: var(--radius-sm); transition: color var(--transition), background var(--transition);
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .history-clear:hover { color: var(--danger); background: var(--danger-dim); }
+    .history-rows { display: flex; flex-direction: column; gap: 4px; }
+    .history-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 6px 0; border-bottom: 1px solid var(--border); animation: slide-in 0.2s ease;
+    }
+    .history-row:last-child { border-bottom: none; }
+    @keyframes slide-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+    .history-round { font-size: 0.65rem; color: var(--muted); width: 20px; flex-shrink: 0; }
+    .history-bar-wrap { flex: 1; height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+    .history-bar { height: 100%; border-radius: 2px; background: var(--accent); transform-origin: left; animation: grow-bar 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    @keyframes grow-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .history-ms { font-family: var(--font-display); font-size: 0.85rem; font-weight: 600; min-width: 54px; text-align: right; }
+    .history-badge { font-size: 0.6rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.06em; text-transform: uppercase; width: 36px; text-align: center; flex-shrink: 0; }
+    .badge-best  { background: var(--accent-dim); color: var(--accent); }
+    .badge-worst { background: var(--danger-dim);  color: var(--danger); }
+    .badge-blank { visibility: hidden; }
+    .empty-state { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 0.5rem 0; }
 
-    /* ============================================================
-       CTA BUTTON (start / play again)
-       ============================================================ */
-    .btn {
+    /* ── Results grid ────────────────────────────────────── */
+    .arena-result-grid {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.8rem;
       width: 100%;
-      padding: 1rem;
-      border: none;
-      border-radius: var(--radius);
-      font-family: var(--font-display);
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background var(--transition), transform 0.1s ease, box-shadow var(--transition);
-      background: var(--accent);
-      color: #0F1117;
+      padding: 0 1.5rem;
+      position: relative;
+      z-index: 2;
     }
+    .result-stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+      width: 100%;
+    }
+    .result-stat { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+    .result-stat-label { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .result-stat-value { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; color: var(--accent); }
+    .result-stat-unit  { font-size: 0.6rem; color: var(--muted); }
+    .result-rating-row { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+    .result-rating-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 
+    /* ── CTA ─────────────────────────────────────────────── */
+    .btn {
+      width: 100%; padding: 1rem; border: none; border-radius: var(--radius);
+      font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+      transition: background var(--transition), transform 0.1s ease, box-shadow var(--transition);
+      background: var(--accent); color: #0F1117;
+    }
     .btn:hover  { background: #86efcd; box-shadow: 0 4px 20px var(--accent-glow); }
     .btn:active { transform: scale(0.98); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* ============================================================
-       FOOTER
-       ============================================================ */
-    footer {
-      text-align: center;
-      font-size: 0.65rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
-    }
+    footer { text-align: center; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.05em; }
 
-    /* ============================================================
-       RESULT OVERLAY (shown inside arena on done state)
-       ============================================================ */
-    .arena-result-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-      width: 100%;
-      padding: 0 2rem;
-    }
-
-    .result-stat {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      align-items: center;
-    }
-
-    .result-stat-label {
-      font-size: 0.6rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .result-stat-value {
-      font-family: var(--font-display);
-      font-size: 1.6rem;
-      font-weight: 800;
-      color: var(--accent);
-    }
-
-    .result-stat-unit {
-      font-size: 0.65rem;
-      color: var(--muted);
-    }
-
-    /* ============================================================
-       RESPONSIVE
-       ============================================================ */
     @media (max-width: 380px) {
       .score-strip { padding: 0.75rem 1rem; }
       .stat-value  { font-size: 1.2rem; }
       .history     { padding: 0.75rem 1rem; }
+      .result-stats-row { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
 <body>
-
 <div class="app">
 
-  <!-- ── Header ──────────────────────────────────────────── -->
   <header>
     <div class="logo">React<span>/</span>or</div>
   </header>
 
-  <!-- ── Score strip ─────────────────────────────────────── -->
   <div class="score-strip">
     <div class="stat">
       <span class="stat-label">Round</span>
       <span class="stat-value" id="roundDisplay">0 / 5</span>
     </div>
-
-    <!-- Round pips (visual progress) -->
     <div class="round-pips" id="pips" aria-hidden="true"></div>
-
     <div class="stat">
       <span class="stat-label">Avg</span>
       <span class="stat-value" id="avgDisplay">— ms</span>
     </div>
   </div>
 
-  <!-- ── Arena (main interactive zone) ───────────────────── -->
   <!--
-    The arena is the heart of the game. It has five data-states:
-      idle     → welcome screen, game hasn't started
-      waiting  → round started, random delay before stimulus
-      go       → stimulus shown — user MUST click NOW
-      early    → user clicked before stimulus (penalty)
-      result   → round ended, showing this round's time
-      done     → all rounds complete, showing final results
+    Arena: data-state drives all CSS & Three.js visuals.
+    States: intro → idle → waiting → go → result → done
+            (early branches off waiting)
   -->
-  <div
-    class="arena"
-    id="arena"
-    data-state="idle"
-    role="button"
-    tabindex="0"
-    aria-label="Reaction arena"
-  >
-    <!-- Content is injected by JS based on current state -->
-    <div class="arena-icon" id="arenaIcon">⚡</div>
-    <div class="arena-title" id="arenaTitle">React/or</div>
-    <div class="arena-subtitle" id="arenaSubtitle">Press Start to begin</div>
+  <div class="arena" id="arena" data-state="intro" role="button" tabindex="0" aria-label="Reaction arena">
+    <canvas id="threeCanvas"></canvas>
+    <div class="arena-content" id="arenaContent">
+      <!-- Intro panel injected here by JS on first load -->
+    </div>
   </div>
 
-  <!-- ── Round history ────────────────────────────────────── -->
   <div class="history">
     <div class="history-header">
       <span class="history-title">Round History</span>
-      <button class="history-clear" id="clearBtn" aria-label="Clear history">Clear</button>
+      <button class="history-clear" id="clearBtn">Clear</button>
     </div>
     <div class="history-rows" id="historyRows">
       <p class="empty-state" id="emptyState">No rounds yet</p>
     </div>
   </div>
 
-  <!-- ── CTA button ───────────────────────────────────────── -->
   <button class="btn" id="mainBtn">Start Game</button>
 
-  <footer>Click anywhere in the arena when it turns green &nbsp;·&nbsp; 5 rounds per game</footer>
+  <footer id="footerHint">Press <strong>Space</strong> or click Start to begin &nbsp;·&nbsp; 5 rounds</footer>
 
 </div>
 
 <script>
   /* ============================================================
-     CONSTANTS & CONFIGURATION
+     CONSTANTS
      ============================================================ */
   const TOTAL_ROUNDS = 5;
+  const DELAY_MIN    = 1500;
+  const DELAY_MAX    = 4500;
 
-  // Randomized delay range (ms). Wide range prevents anticipation.
-  const DELAY_MIN = 1500;
-  const DELAY_MAX = 4500;
+  /*
+    RATING SCALE — based on published human reaction time benchmarks:
+      Amazing    < 200 ms  (elite athlete / top 5%)
+      Very Good  < 250 ms  (above average)
+      Average    < 350 ms  (typical adult)
+      Below Avg  ≥ 350 ms
+  */
+  const RATINGS = [
+    { max: 200, key: 'amazing',   label: 'Amazing',      color: '#6EE7B7', dot: '#6EE7B7' },
+    { max: 250, key: 'very-good', label: 'Very Good',    color: '#81D26F', dot: '#81D26F' },
+    { max: 350, key: 'average',   label: 'Average',      color: '#FBBF24', dot: '#FBBF24' },
+    { max: Infinity, key: 'below-avg', label: 'Below Average', color: '#F87171', dot: '#F87171' },
+  ];
+
+  function getRating(ms) {
+    return RATINGS.find(r => ms < r.max);
+  }
 
   /* ============================================================
-     STATE
-     All mutable state lives in one object for clarity.
+     THREE.JS PARTICLE SYSTEM
+     ─────────────────────────────────────────────────────────────
+     WebGLRenderer with alpha:true renders to a transparent canvas
+     layered behind all UI. Particles smoothly lerp between
+     visual targets for each game state.
      ============================================================ */
+
+  const NUM_PARTICLES = 200;
+
+  const TARGET = {
+    intro:   { r: 0.43, g: 0.90, b: 0.72, size: 2.2, speed: 0.25, spread: 0.70 },
+    idle:    { r: 0.43, g: 0.90, b: 0.72, size: 1.8, speed: 0.15, spread: 0.55 },
+    waiting: { r: 0.55, g: 0.92, b: 0.80, size: 2.4, speed: 0.60, spread: 0.80 },
+    go:      { r: 0.43, g: 0.90, b: 0.72, size: 5.0, speed: 2.50, spread: 1.50 },
+    early:   { r: 0.97, g: 0.44, b: 0.44, size: 4.0, speed: 3.00, spread: 1.70 },
+    result:  { r: 0.43, g: 0.90, b: 0.72, size: 2.6, speed: 0.28, spread: 0.65 },
+    done:    { r: 0.43, g: 0.90, b: 0.72, size: 3.0, speed: 0.38, spread: 1.00 },
+  };
+
+  let cur          = { ...TARGET.intro };
+  let particlePhase = 'intro';
+
+  const threeCanvas = document.getElementById('threeCanvas');
+  const arenaEl     = document.getElementById('arena');
+
+  const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  camera.position.z = 5;
+
+  const positions = new Float32Array(NUM_PARTICLES * 3);
+  const phases    = new Float32Array(NUM_PARTICLES);
+  const speeds    = new Float32Array(NUM_PARTICLES);
+  const baseAngle = new Float32Array(NUM_PARTICLES);
+  const baseR     = new Float32Array(NUM_PARTICLES);
+
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    baseAngle[i] = Math.random() * Math.PI * 2;
+    baseR[i]     = Math.random();
+    phases[i]    = Math.random() * Math.PI * 2;
+    speeds[i]    = 0.4 + Math.random() * 1.2;
+    positions[i * 3]     = Math.cos(baseAngle[i]) * baseR[i];
+    positions[i * 3 + 1] = Math.sin(baseAngle[i]) * baseR[i];
+    positions[i * 3 + 2] = 0;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: new THREE.Color(cur.r, cur.g, cur.b),
+    size: cur.size / 100,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+
+  function syncSize() {
+    const w = arenaEl.clientWidth;
+    const h = arenaEl.clientHeight;
+    renderer.setSize(w, h, false);
+    const aspect = w / h;
+    camera.left  = -aspect;
+    camera.right =  aspect;
+    camera.updateProjectionMatrix();
+  }
+  syncSize();
+  new ResizeObserver(syncSize).observe(arenaEl);
+
+  const clock = new THREE.Clock();
+  let elapsed  = 0;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function tick() {
+    requestAnimationFrame(tick);
+    elapsed += clock.getDelta();
+    const tgt = TARGET[particlePhase] || TARGET.idle;
+    const L   = 0.05;
+
+    cur.r      = lerp(cur.r,      tgt.r,      L);
+    cur.g      = lerp(cur.g,      tgt.g,      L);
+    cur.b      = lerp(cur.b,      tgt.b,      L);
+    cur.size   = lerp(cur.size,   tgt.size,   L);
+    cur.speed  = lerp(cur.speed,  tgt.speed,  L * 0.4);
+    cur.spread = lerp(cur.spread, tgt.spread, L);
+
+    mat.color.setRGB(cur.r, cur.g, cur.b);
+    mat.size = cur.size / 100;
+
+    const posAttr = geo.attributes.position;
+    const aspect  = camera.right;
+
+    for (let i = 0; i < NUM_PARTICLES; i++) {
+      const ph  = phases[i];
+      const spd = speeds[i] * cur.speed;
+      const r   = (0.1 + baseR[i] * 0.9) * cur.spread;
+      const ang = baseAngle[i] + elapsed * spd * 0.3;
+
+      let x = Math.cos(ang + ph * 0.08) * r;
+      let y = Math.sin(ang + ph * 0.08) * r * 0.6;
+      x += Math.sin(elapsed * 1.3 + ph) * 0.025 * cur.speed;
+      y += Math.cos(elapsed * 1.0 + ph) * 0.025 * cur.speed;
+
+      if (particlePhase === 'go' || particlePhase === 'early') {
+        const burst = (Math.sin(elapsed * 5.0 + ph) + 1) * 0.5;
+        x += Math.cos(ang) * burst * 0.30;
+        y += Math.sin(ang) * burst * 0.18;
+      }
+
+      posAttr.setXYZ(i, x * aspect, y, 0);
+    }
+
+    posAttr.needsUpdate = true;
+    renderer.render(scene, camera);
+  }
+  tick();
+
+  /* ============================================================
+     GAME STATE
+     ============================================================ */
+  let introSeen = false; // tracks whether the intro has been dismissed
+
   let state = {
-    phase: 'idle',      // 'idle' | 'waiting' | 'go' | 'early' | 'result' | 'done'
-    round: 0,           // current round (1-indexed, 0 = not started)
-    times: [],          // reaction times in ms for each completed round
-    stimulusAt: null,   // performance.now() timestamp when stimulus appeared
-    delayTimer: null,   // timeout ID for the random pre-stimulus delay
-    earlyTimer: null,   // timeout ID for clearing the 'early' state
+    phase:      'intro', // starts on intro screen
+    round:      0,
+    times:      [],
+    stimulusAt: null,
+    delayTimer: null,
+    earlyTimer: null,
   };
 
   /* ============================================================
      DOM REFS
      ============================================================ */
-  const arena       = document.getElementById('arena');
-  const arenaIcon   = document.getElementById('arenaIcon');
-  const arenaTitle  = document.getElementById('arenaTitle');
-  const arenaSub    = document.getElementById('arenaSubtitle');
-  const roundDisp   = document.getElementById('roundDisplay');
-  const avgDisp     = document.getElementById('avgDisplay');
-  const pipsEl      = document.getElementById('pips');
-  const historyRows = document.getElementById('historyRows');
-  const emptyState  = document.getElementById('emptyState');
-  const mainBtn     = document.getElementById('mainBtn');
-  const clearBtn    = document.getElementById('clearBtn');
+  const arenaContent = document.getElementById('arenaContent');
+  const roundDisp    = document.getElementById('roundDisplay');
+  const avgDisp      = document.getElementById('avgDisplay');
+  const pipsEl       = document.getElementById('pips');
+  const historyRows  = document.getElementById('historyRows');
+  const emptyState   = document.getElementById('emptyState');
+  const mainBtn      = document.getElementById('mainBtn');
+  const clearBtn     = document.getElementById('clearBtn');
+  const footerHint   = document.getElementById('footerHint');
 
   /* ============================================================
      HELPERS
      ============================================================ */
+  const clamp   = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const average = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+  const randInt = (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo;
+  const barW    = (ms, max) => `${clamp((ms / max) * 100, 4, 100)}%`;
 
-  /** Clamp a number between min and max */
-  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-
-  /** Compute average of an array of numbers */
-  const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
-
-  /** Generate a random integer between min and max (inclusive) */
-  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-  /** Determine bar width percentage relative to slowest time recorded */
-  const barWidth = (ms, max) => `${clamp((ms / max) * 100, 4, 100)}%`;
+  /** Build a rating chip HTML string */
+  function ratingChipHTML(ms) {
+    const r = getRating(ms);
+    return `<span class="rating-chip ${r.key}">
+      <span style="width:6px;height:6px;border-radius:50%;background:${r.dot};display:inline-block;flex-shrink:0;"></span>
+      ${r.label}
+    </span>`;
+  }
 
   /* ============================================================
-     RENDER — keeps UI in sync with state
+     INTRO PANEL
+     Built once and injected into arenaContent.
+     Dismissed permanently when user starts the game.
+     ============================================================ */
+  function buildIntroPanel() {
+    const panel = document.createElement('div');
+    panel.className = 'intro-panel';
+    panel.id = 'introPanel';
+    panel.innerHTML = `
+      <div class="intro-title">How to Play</div>
+      <div class="intro-steps">
+        <div class="intro-step">
+          <div class="intro-step-num">1</div>
+          <span>Press <strong>Space</strong> or hit <strong>Start Game</strong> to begin a round.</span>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-num">2</div>
+          <span>Wait for the arena to flash <strong style="color:var(--accent)">green</strong> — then click or tap as fast as you can.</span>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-num">3</div>
+          <span>Don't click early! Clicking before the signal restarts the round.</span>
+        </div>
+      </div>
+
+      <div class="intro-divider"></div>
+
+      <div style="width:100%">
+        <div style="font-size:0.6rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.45rem;">Score Guide</div>
+        <div class="intro-ratings">
+          ${RATINGS.map(r => `
+            <div class="intro-rating">
+              <span class="rating-dot" style="background:${r.dot}"></span>
+              <span style="color:${r.color};font-weight:600;">${r.label}</span>
+              <span style="color:var(--muted);font-size:0.65rem;">${r.max === Infinity ? '≥ 350ms' : '< ' + r.max + 'ms'}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="intro-divider"></div>
+
+      <div class="intro-cta">Press <kbd>Space</kbd> or click <strong>Start Game</strong> below</div>
+    `;
+    return panel;
+  }
+
+  /* ============================================================
+     RENDER — syncs all UI with state
      ============================================================ */
   function render() {
     const { phase, round, times } = state;
 
-    // ── Arena state attr (drives all CSS state variants)
-    arena.dataset.state = phase;
+    // Sync Three.js particle phase
+    particlePhase = phase;
+    arenaEl.dataset.state = phase;
 
-    // ── Phase-specific arena content
+    // ── Clear arena content, then rebuild for current phase
+    arenaContent.innerHTML = '';
+
     switch (phase) {
-      case 'idle':
-        arenaIcon.textContent  = '⚡';
-        arenaTitle.textContent = 'React/or';
-        arenaTitle.style.color = 'var(--text)';
-        arenaSub.textContent   = 'Press Start to begin';
-        arenaSub.style.color   = 'var(--muted)';
-        break;
 
-      case 'waiting':
-        arenaIcon.textContent  = '👁';
-        arenaTitle.textContent = 'Wait...';
-        arenaTitle.style.color = 'var(--muted)';
-        arenaSub.textContent   = 'Get ready — click on green';
-        arenaSub.style.color   = 'var(--muted)';
+      case 'intro': {
+        /*
+          Intro: shown only on first load. Contains "how to play"
+          + score guide. Dismissed permanently by starting a game.
+          The Start button and footer are visible normally.
+        */
+        arenaContent.appendChild(buildIntroPanel());
+        mainBtn.textContent   = 'Start Game';
+        mainBtn.style.display = '';
+        mainBtn.disabled      = false;
+        footerHint.innerHTML  = 'Press <strong>Space</strong> or click Start to begin &nbsp;·&nbsp; 5 rounds';
         break;
+      }
 
-      case 'go':
-        arenaIcon.textContent  = '●';
-        arenaTitle.textContent = 'NOW!';
-        arenaTitle.style.color = 'var(--accent)';
-        arenaSub.textContent   = 'Click / tap as fast as you can';
-        arenaSub.style.color   = 'var(--accent)';
+      case 'idle': {
+        arenaContent.innerHTML = `
+          <div class="arena-icon">⚡</div>
+          <div class="arena-title" style="color:var(--text)">React/or</div>
+          <div class="arena-subtitle">Ready when you are</div>
+        `;
+        mainBtn.textContent   = 'Start Game';
+        mainBtn.style.display = '';
+        mainBtn.disabled      = false;
+        footerHint.innerHTML  = 'Press <strong>Space</strong> or click Start';
         break;
+      }
 
-      case 'early':
-        arenaIcon.textContent  = '✗';
-        arenaTitle.textContent = 'Too Early!';
-        arenaTitle.style.color = 'var(--danger)';
-        arenaSub.textContent   = 'Wait for the green signal';
-        arenaSub.style.color   = 'var(--danger)';
+      case 'waiting': {
+        arenaContent.innerHTML = `
+          <div class="arena-icon">👁</div>
+          <div class="arena-title" style="color:var(--muted)">Wait...</div>
+          <div class="arena-subtitle">Get ready — click on green</div>
+        `;
+        mainBtn.style.display = 'none';
+        footerHint.innerHTML  = 'Round ${round} of ${TOTAL_ROUNDS}';
         break;
+      }
+
+      case 'go': {
+        arenaContent.innerHTML = `
+          <div class="arena-icon">●</div>
+          <div class="arena-title" style="color:var(--accent)">NOW!</div>
+          <div class="arena-subtitle" style="color:var(--accent)">Click / tap as fast as you can</div>
+        `;
+        mainBtn.style.display = 'none';
+        footerHint.innerHTML  = 'Round ${round} of ${TOTAL_ROUNDS}';
+        break;
+      }
+
+      case 'early': {
+        arenaContent.innerHTML = `
+          <div class="arena-icon">✗</div>
+          <div class="arena-title" style="color:var(--danger)">Too Early!</div>
+          <div class="arena-subtitle" style="color:var(--danger)">Wait for the green signal</div>
+        `;
+        mainBtn.style.display = 'none';
+        footerHint.innerHTML  = 'Round retrying…';
+        break;
+      }
 
       case 'result': {
-        const last = times[times.length - 1];
-        arenaIcon.textContent  = '✓';
-        arenaTitle.textContent = `${last} ms`;
-        arenaTitle.style.color = 'var(--accent)';
-        arenaSub.textContent   = round < TOTAL_ROUNDS
-          ? 'Click to start next round'
-          : 'Click to see results';
-        arenaSub.style.color   = 'var(--muted)';
+        const last   = times[times.length - 1];
+        const canContinue = round < TOTAL_ROUNDS;
+        arenaContent.innerHTML = `
+          <div class="arena-icon">✓</div>
+          <div class="arena-title" style="color:var(--accent)">${last} ms</div>
+          ${ratingChipHTML(last)}
+          <div class="arena-subtitle">${canContinue ? 'Click or press Space for next round' : 'Click or press Space to see results'}</div>
+        `;
+        mainBtn.style.display = 'none';
+        footerHint.innerHTML  = `Round ${round} of ${TOTAL_ROUNDS} complete`;
         break;
       }
 
       case 'done': {
         const best  = Math.min(...times);
         const worst = Math.max(...times);
-        const mean  = avg(times);
+        const mean  = average(times);
+        const avgR  = getRating(mean);
 
-        // Replace standard arena content with a mini-results grid
-        arenaIcon.style.display = 'none';
-        arenaTitle.style.display = 'none';
-        arenaSub.style.display  = 'none';
-
-        // Build results DOM (idempotent — only if not already rendered)
-        if (!arena.querySelector('.arena-result-grid')) {
-          const grid = document.createElement('div');
-          grid.className = 'arena-result-grid';
-          grid.innerHTML = `
+        const grid = document.createElement('div');
+        grid.className = 'arena-result-grid';
+        grid.innerHTML = `
+          <div class="result-stats-row">
             <div class="result-stat">
               <span class="result-stat-label">Average</span>
               <span class="result-stat-value">${mean}</span>
@@ -677,92 +771,68 @@
             <div class="result-stat">
               <span class="result-stat-label">Rounds</span>
               <span class="result-stat-value">${TOTAL_ROUNDS}</span>
-              <span class="result-stat-unit">completed</span>
+              <span class="result-stat-unit">played</span>
             </div>
-          `;
-          arena.appendChild(grid);
-        }
+          </div>
+          <div class="result-rating-row">
+            <span class="result-rating-label">Your rating</span>
+            ${ratingChipHTML(mean)}
+          </div>
+        `;
+        arenaContent.appendChild(grid);
+
+        mainBtn.textContent   = 'Play Again';
+        mainBtn.style.display = '';
+        mainBtn.disabled      = false;
+        footerHint.innerHTML  = 'Press <strong>Space</strong> or click Play Again';
         break;
       }
     }
 
-    // ── Restore hidden elements if leaving 'done' state
-    if (phase !== 'done') {
-      arenaIcon.style.display  = '';
-      arenaTitle.style.display = '';
-      arenaSub.style.display   = '';
-      const oldGrid = arena.querySelector('.arena-result-grid');
-      if (oldGrid) oldGrid.remove();
-    }
-
     // ── Score strip
     roundDisp.textContent = `${round} / ${TOTAL_ROUNDS}`;
-    const currentAvg = avg(times);
-    avgDisp.textContent   = currentAvg !== null ? `${currentAvg} ms` : '— ms';
-    avgDisp.classList.toggle('accent', currentAvg !== null);
+    const avg = average(times);
+    avgDisp.textContent = avg !== null ? `${avg} ms` : '— ms';
+    avgDisp.classList.toggle('accent', avg !== null);
 
-    // ── Pip indicators
+    // ── Round pips
     pipsEl.innerHTML = '';
     for (let i = 1; i <= TOTAL_ROUNDS; i++) {
       const pip = document.createElement('div');
       pip.className = 'pip';
-      if (i < round || (i === round && phase === 'result'))  pip.classList.add('done');
-      else if (i === round && phase !== 'idle')              pip.classList.add('current');
+      if (i < round || (i === round && phase === 'result')) pip.classList.add('done');
+      else if (i === round && phase !== 'idle' && phase !== 'intro') pip.classList.add('current');
       pipsEl.appendChild(pip);
     }
 
-    // ── Main button label & enabled state
-    mainBtn.disabled = ['waiting','go'].includes(phase);
-    if (phase === 'idle' || phase === 'done') {
-      mainBtn.textContent = phase === 'done' ? 'Play Again' : 'Start Game';
-      mainBtn.style.display = '';
-    } else {
-      mainBtn.style.display = 'none';
-    }
-
-    // ── History rows
     renderHistory();
   }
 
-  /** Render the round history list with bar charts */
   function renderHistory() {
     const { times } = state;
-
     if (times.length === 0) {
       historyRows.innerHTML = '';
       emptyState.style.display = 'block';
       historyRows.appendChild(emptyState);
       return;
     }
-
     emptyState.style.display = 'none';
-
     const maxTime = Math.max(...times);
     const minIdx  = times.indexOf(Math.min(...times));
     const maxIdx  = times.indexOf(maxTime);
-
-    // Build rows only for entries not yet rendered (performance opt)
-    const existingCount = historyRows.querySelectorAll('.history-row').length;
-    if (existingCount === times.length) return; // Nothing new to paint
-
-    historyRows.innerHTML = ''; // Full repaint on any change (simple & reliable)
-
+    if (historyRows.querySelectorAll('.history-row').length === times.length) return;
+    historyRows.innerHTML = '';
     times.forEach((ms, i) => {
       const isBest  = i === minIdx && times.length > 1;
       const isWorst = i === maxIdx && times.length > 1;
-
       const row = document.createElement('div');
       row.className = 'history-row';
       row.innerHTML = `
         <span class="history-round">${i + 1}</span>
-        <div class="history-bar-wrap">
-          <div class="history-bar" style="width:${barWidth(ms, maxTime)}"></div>
-        </div>
+        <div class="history-bar-wrap"><div class="history-bar" style="width:${barW(ms, maxTime)}"></div></div>
         <span class="history-ms">${ms} ms</span>
         <span class="history-badge ${isBest ? 'badge-best' : isWorst ? 'badge-worst' : 'badge-blank'}">
-          ${isBest ? 'Best' : isWorst ? 'Slow' : ''}
-        </span>
-      `;
+          ${isBest ? 'Best' : isWorst ? 'Slow' : ''}</span>`;
       historyRows.appendChild(row);
     });
   }
@@ -771,55 +841,43 @@
      GAME LOGIC
      ============================================================ */
 
-  /** Begin a new round: start the random pre-stimulus delay */
   function startRound() {
     state.round++;
     state.phase = 'waiting';
     render();
 
-    /*
-      TIMING NOTE: We use a random delay between DELAY_MIN and DELAY_MAX ms.
-      This prevents users from anticipating the stimulus based on rhythm.
-      The actual "go" timestamp is captured via performance.now() — a high-resolution
-      timer with sub-millisecond precision — rather than Date.now(), which can be
-      affected by system clock adjustments.
-    */
     state.delayTimer = setTimeout(() => {
       state.phase      = 'go';
-      state.stimulusAt = performance.now(); // ← high-res timestamp
+      state.stimulusAt = performance.now();
       render();
     }, randInt(DELAY_MIN, DELAY_MAX));
   }
 
-  /**
-   * Handle a click/tap on the arena.
-   * The arena handles ALL game interaction; the Start button only initiates.
-   */
+  /** Dismiss the intro and move to idle, then immediately start */
+  function dismissIntroAndStart() {
+    introSeen = true;
+    resetGame(); // sets phase to 'idle'
+    startRound();
+  }
+
   function handleArenaClick() {
     const { phase } = state;
 
+    // Clicking anywhere on the arena during intro starts the game
+    if (phase === 'intro') {
+      dismissIntroAndStart();
+      return;
+    }
+
     if (phase === 'waiting') {
-      // Clicked before stimulus — penalise and restart the round
       clearTimeout(state.delayTimer);
       state.phase = 'early';
       render();
-
-      // After a brief pause, let user retry the same round
-      state.earlyTimer = setTimeout(() => {
-        // Back the round counter up so startRound() increments it correctly
-        state.round--;
-        startRound();
-      }, 1500);
+      state.earlyTimer = setTimeout(() => { state.round--; startRound(); }, 1500);
       return;
     }
 
     if (phase === 'go') {
-      /*
-        REACTION TIME MEASUREMENT:
-        We capture performance.now() immediately on click and subtract the
-        stored stimulusAt timestamp. performance.now() returns a DOMHighResTimeStamp
-        with microsecond resolution, so we Math.round() to a clean ms integer.
-      */
       const elapsed = Math.round(performance.now() - state.stimulusAt);
       state.times.push(elapsed);
       state.phase = 'result';
@@ -828,57 +886,70 @@
     }
 
     if (phase === 'result') {
-      if (state.round < TOTAL_ROUNDS) {
-        startRound();
-      } else {
-        state.phase = 'done';
-        render();
-      }
-      return;
+      if (state.round < TOTAL_ROUNDS) startRound();
+      else { state.phase = 'done'; render(); }
     }
   }
 
-  /** Reset everything and return to idle */
   function resetGame() {
     clearTimeout(state.delayTimer);
     clearTimeout(state.earlyTimer);
-    state = {
-      phase: 'idle',
-      round: 0,
-      times: [],
-      stimulusAt: null,
-      delayTimer: null,
-      earlyTimer: null,
-    };
+    // After intro is seen, reset goes to idle not intro
+    state = { phase: 'idle', round: 0, times: [], stimulusAt: null, delayTimer: null, earlyTimer: null };
     render();
   }
 
   /* ============================================================
-     EVENT LISTENERS
+     SPACEBAR TRIGGER
+     ─────────────────────────────────────────────────────────────
+     Space acts as the universal "primary action" key:
+       intro   → dismiss intro + start
+       idle    → start game
+       result  → advance to next round or results
+       done    → reset + start again
+       go      → register reaction (same as click)
+       waiting → penalise early press
+     We preventDefault to stop the page from scrolling.
      ============================================================ */
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space') return;
+    e.preventDefault();
 
-  // Arena: click and keyboard (Enter/Space for accessibility)
-  arena.addEventListener('click', handleArenaClick);
-  arena.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleArenaClick();
+    const { phase } = state;
+
+    if (phase === 'intro' || phase === 'idle') {
+      if (phase === 'intro') dismissIntroAndStart();
+      else { resetGame(); startRound(); }
+      return;
     }
-  });
+    if (phase === 'done') { resetGame(); startRound(); return; }
 
-  // Main CTA button
-  mainBtn.addEventListener('click', () => {
-    if (state.phase === 'idle' || state.phase === 'done') {
-      resetGame();
-      startRound();
-    }
+    // For in-game phases, delegate to arena click handler
+    handleArenaClick();
   });
-
-  // Clear history button — resets everything
-  clearBtn.addEventListener('click', resetGame);
 
   /* ============================================================
-     INIT
+     EVENT LISTENERS
+     ============================================================ */
+  arenaEl.addEventListener('click', handleArenaClick);
+  arenaEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); handleArenaClick(); }
+  });
+
+  mainBtn.addEventListener('click', () => {
+    const { phase } = state;
+    if (phase === 'intro') { dismissIntroAndStart(); return; }
+    if (phase === 'idle' || phase === 'done') { resetGame(); startRound(); }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    // After intro was seen, clear returns to idle (not intro)
+    if (introSeen) resetGame();
+    else { state = { phase: 'intro', round: 0, times: [], stimulusAt: null, delayTimer: null, earlyTimer: null }; render(); }
+  });
+
+  /* ============================================================
+     INIT — start on intro screen
      ============================================================ */
   render();
 </script>
